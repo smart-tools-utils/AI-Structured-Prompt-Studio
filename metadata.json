@@ -1,0 +1,6 @@
+{
+  "name": "AI Studio Structured Prompt Studio",
+  "description": "Comprehensive Google AI Studio Structured Prompt environment with few-shot example tables, test cases, JSON schema generation, and code export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
