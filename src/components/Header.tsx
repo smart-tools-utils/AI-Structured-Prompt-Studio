@@ -108,8 +108,8 @@ export const Header: React.FC<Props> = ({
               onChange={(e) => onChangeConfig({ ...config, model: e.target.value })}
               className="bg-slate-900 border-0 text-xs text-white font-medium rounded-md px-2 py-1 focus:ring-1 focus:ring-blue-500 cursor-pointer"
             >
-              <option value="gemini-3.8-flash">gemini-3.8-flash (Default)</option>
-              <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Fastest)</option>
+              <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Recommended / High Quota)</option>
+              <option value="gemini-3.8-flash">gemini-3.8-flash (Standard / 20 req/day)</option>
               <option value="gemini-4-argon">gemini-4-argon (Complex STEM)</option>
             </select>
           </div>

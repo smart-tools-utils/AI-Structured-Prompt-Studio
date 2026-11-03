@@ -69,8 +69,8 @@ export const PRESETS: StructuredPromptConfig[] = [
         in_topic: 'Regler kring barnstolar och bälte i taxi enligt svensk lag',
       },
     ],
-    model: 'gemini-3.8-flash',
-    thinkingLevel: 'MEDIUM',
+    model: 'gemini-3.1-flash-lite',
+    thinkingLevel: 'LOW',
     jsonMode: true,
   },
   {
