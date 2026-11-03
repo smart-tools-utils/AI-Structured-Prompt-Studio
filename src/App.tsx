@@ -92,7 +92,17 @@ export default function App() {
         }),
       });
 
-      const data = await res.json();
+      const resText = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(resText);
+      } catch (parseErr) {
+        if (resText.includes('504') || resText.includes('Gateway') || resText.includes('Timeout')) {
+          throw new Error('انتهت مهلة الخادم السحابي (504 Gateway Timeout). تم تحديث السيرفر لتسريع الرد فورياً.');
+        }
+        throw new Error('خطأ غير متوقع في قراءة استجابة الخادم: ' + (resText.slice(0, 100) || 'استجابة فارغة'));
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to generate output');
       }
