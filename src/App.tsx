@@ -34,7 +34,15 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.id === 'swedish-taxi-quiz') return parsed;
+        if (
+          parsed &&
+          Array.isArray(parsed.inputColumns) &&
+          Array.isArray(parsed.outputColumns) &&
+          Array.isArray(parsed.examples) &&
+          Array.isArray(parsed.testCases)
+        ) {
+          return parsed;
+        }
       }
     } catch {
       // ignore
@@ -154,6 +162,28 @@ export default function App() {
     dlAnchor.setAttribute('download', `${config.title.replace(/\s+/g, '_')}_prompt.json`);
     dlAnchor.click();
     showToast(isAr ? 'تم تصدير ملف المطالبة بنجاح!' : 'Prompt exported to JSON file!');
+  };
+
+  // Import prompt from JSON
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (parsed.inputColumns && parsed.outputColumns) {
+          setConfig(parsed);
+          showToast(isAr ? 'تم استيراد المطالبة بنجاح!' : 'Prompt imported successfully!');
+        } else {
+          showToast(isAr ? 'الملف غير متطابق مع هيكل Structured Prompt' : 'Invalid Structured Prompt JSON structure');
+        }
+      } catch {
+        showToast(isAr ? 'خطأ في قراءة الملف' : 'Error reading JSON file');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   // Export purely the quiz questions JSON array for direct use in taxikorkort or CivicQuiz
