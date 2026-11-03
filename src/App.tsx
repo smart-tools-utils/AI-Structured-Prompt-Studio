@@ -23,6 +23,7 @@ import { TestCasesTable } from './components/TestCasesTable';
 import { GetCodeModal } from './components/GetCodeModal';
 import { AIStudioGuideModal } from './components/AIStudioGuideModal';
 import { ColumnConfigModal } from './components/ColumnConfigModal';
+import { BatchGeneratorModal } from './components/BatchGeneratorModal';
 
 const STORAGE_KEY = 'aistudio_structured_prompt_state';
 
@@ -44,6 +45,7 @@ export default function App() {
   const [isGetCodeOpen, setIsGetCodeOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isColumnConfigOpen, setIsColumnConfigOpen] = useState(false);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -154,26 +156,71 @@ export default function App() {
     showToast(isAr ? 'تم تصدير ملف المطالبة بنجاح!' : 'Prompt exported to JSON file!');
   };
 
-  // Import prompt from JSON
-  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (parsed.inputColumns && parsed.outputColumns) {
-          setConfig(parsed);
-          showToast(isAr ? 'تم استيراد المطالبة بنجاح!' : 'Prompt imported successfully!');
-        } else {
-          showToast(isAr ? 'الملف غير متطابق مع هيكل Structured Prompt' : 'Invalid Structured Prompt JSON structure');
+  // Export purely the quiz questions JSON array for direct use in taxikorkort or CivicQuiz
+  const handleExportQuestionsJson = () => {
+    const questions: any[] = [];
+    config.testCases.forEach((tc) => {
+      // Find output value
+      const outCol = config.outputColumns[0];
+      const val = tc[outCol?.id] || tc.out_quiz_json;
+      if (val) {
+        try {
+          const parsed = typeof val === 'object' ? val : JSON.parse(val);
+          questions.push(parsed);
+        } catch {
+          // not JSON, wrap as question
+          questions.push({
+            question_sv: tc[config.inputColumns[0]?.id] || 'Fråga',
+            question_ar: tc[config.inputColumns[0]?.id] || 'سؤال',
+            options: ['Ja', 'Nej'],
+            correct_index: 0,
+            explanation: String(val),
+          });
         }
-      } catch (err) {
-        showToast(isAr ? 'خطأ في قراءة الملف' : 'Error reading JSON file');
       }
+    });
+
+    if (questions.length === 0) {
+      showToast(isAr ? 'لا توجد نتائج اختبار بعد. اضغط "تشغيل الكل" أولاً أو استخدم زر "توليد 50 سؤالاً".' : 'No quiz results yet. Run test cases or use Bulk 50 Generator first.');
+      return;
+    }
+
+    const jsonStr = JSON.stringify(questions, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = config.id.includes('civic') ? 'civic_quiz_questions.json' : 'taxikorkort_questions.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(isAr ? `تم تصدير ${questions.length} سؤالاً بنجاح كملف questions.json جاهز!` : `Exported ${questions.length} questions as clean JSON!`);
+  };
+
+  // Create a new blank custom structured prompt
+  const handleCreateNewPrompt = () => {
+    const newConfig: StructuredPromptConfig = {
+      id: `custom_${Date.now()}`,
+      title: isAr ? 'مطالبة مهيكلة مخصصة جديدة' : 'New Custom Structured Prompt',
+      description: isAr ? 'قالب مخصص تم إنشاؤه من الصفر' : 'Custom structured prompt template',
+      systemInstruction: isAr ? 'أنت مساعد ذكي متخصص. أجب بدقة وفق النمط المحدد.' : 'You are an expert AI assistant. Follow the defined pattern strictly.',
+      inputColumns: [
+        { id: 'in_1', name: isAr ? 'المدخل 1 (Input 1)' : 'Input 1', type: 'text' },
+      ],
+      outputColumns: [
+        { id: 'out_1', name: isAr ? 'المخرج 1 (Output 1)' : 'Output 1', type: 'text' },
+      ],
+      examples: [
+        { id: 'ex_1', in_1: '', out_1: '' },
+      ],
+      testCases: [
+        { id: 'test_1', in_1: '' },
+      ],
+      model: 'gemini-3.1-flash-lite',
+      thinkingLevel: 'LOW',
+      jsonMode: false,
     };
-    reader.readAsText(file);
-    e.target.value = '';
+    setConfig(newConfig);
+    showToast(isAr ? 'تم إنشاء قالب مخصص جديد! يمكنك تعديل الأعمدة والتعليمات الآن.' : 'New custom prompt created!');
   };
 
   return (
@@ -240,23 +287,95 @@ export default function App() {
 
           {/* Quick utility bar below banner */}
           <div className="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Bulk 50 Generator button */}
+              <button
+                onClick={() => setIsBatchModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 fill-current" />
+                <span>{isAr ? '⚡ توليد 50 سؤالاً دفعة واحدة' : '⚡ Bulk Generate 50 Qs'}</span>
+              </button>
+
+              {/* Swedish Taxi Preset */}
               <button
                 onClick={() => {
-                  const taxiPreset = PRESETS.find((p) => p.id === 'swedish-taxi-quiz');
-                  if (taxiPreset) {
-                    setConfig(JSON.parse(JSON.stringify(taxiPreset)));
-                    showToast('تم تفعيل قالب قوانين التاكسي بالسويد بنجاح!');
+                  const p = PRESETS.find((x) => x.id === 'swedish-taxi-quiz');
+                  if (p) {
+                    setConfig(JSON.parse(JSON.stringify(p)));
+                    showToast('تم تفعيل قالب قوانين التاكسي بالسويد!');
                   }
                 }}
-                className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-amber-500/20 to-blue-500/20 hover:from-amber-500/30 hover:to-blue-500/30 text-amber-300 text-xs font-semibold rounded-lg border border-amber-500/40 transition shadow-sm"
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border transition ${
+                  config.id === 'swedish-taxi-quiz'
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
               >
-                <span>🇸🇪</span>
-                <span>{isAr ? 'قالب قوانين التاكسي بالسويد (طلبك)' : 'Swedish Taxi Quiz Preset'}</span>
+                <span>🚖</span>
+                <span>{isAr ? 'قوانين التاكسي' : 'Taxi Laws'}</span>
+              </button>
+
+              {/* CivicQuiz Preset */}
+              <button
+                onClick={() => {
+                  const p = PRESETS.find((x) => x.id === 'civic-quiz');
+                  if (p) {
+                    setConfig(JSON.parse(JSON.stringify(p)));
+                    showToast('تم تفعيل قالب اختبار الجنسية (CivicQuiz)!');
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border transition ${
+                  config.id === 'civic-quiz'
+                    ? 'bg-blue-500/20 text-blue-300 border-blue-500/50'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+              >
+                <span>🏛️</span>
+                <span>{isAr ? 'اختبار الجنسية (CivicQuiz)' : 'Civic Quiz'}</span>
+              </button>
+
+              {/* Sentiment Preset */}
+              <button
+                onClick={() => {
+                  const p = PRESETS.find((x) => x.id === 'sentiment-intent');
+                  if (p) {
+                    setConfig(JSON.parse(JSON.stringify(p)));
+                    showToast('تم تفعيل قالب تحليل المشاعر والنية!');
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border transition ${
+                  config.id === 'sentiment-intent'
+                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+              >
+                <span>💭</span>
+                <span>{isAr ? 'تحليل المشاعر' : 'Sentiment'}</span>
+              </button>
+
+              {/* Create New Custom Blank Template */}
+              <button
+                onClick={handleCreateNewPrompt}
+                className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-300 text-xs font-semibold rounded-lg border border-slate-700 transition"
+                title={isAr ? 'إنشاء مطالبة مهيكلة فارغة مخصصة بالكامل' : 'Create new blank prompt'}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{isAr ? 'قالب جديد' : 'New Custom'}</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Dedicated Export for taxikorkort and CivicQuiz */}
+              <button
+                onClick={handleExportQuestionsJson}
+                className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold rounded-lg transition shadow-sm"
+                title={isAr ? 'تصدير الأسئلة الجاهزة للاستخدام في تطبيقي taxikorkort و CivicQuiz' : 'Export clean questions.json for quiz apps'}
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{isAr ? 'تصدير questions.json للتطبيقات' : 'Export questions.json'}</span>
+              </button>
+
               <label className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 cursor-pointer transition">
                 <Upload className="w-3 h-3" />
                 <span>{isAr ? 'استيراد JSON' : 'Import JSON'}</span>
@@ -272,7 +391,7 @@ export default function App() {
                 className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition"
               >
                 <Download className="w-3 h-3" />
-                <span>{isAr ? 'تصدير JSON' : 'Export JSON'}</span>
+                <span>{isAr ? 'تصدير القالب' : 'Export Template'}</span>
               </button>
             </div>
           </div>
@@ -333,6 +452,19 @@ export default function App() {
             outputColumns: outputs,
           });
           showToast(isAr ? 'تم تحديث الأعمدة بنجاح' : 'Columns updated successfully');
+        }}
+        lang={lang}
+      />
+
+      <BatchGeneratorModal
+        isOpen={isBatchModalOpen}
+        onClose={() => setIsBatchModalOpen(false)}
+        onAppendTestCases={(newRows) => {
+          setConfig((prev) => ({
+            ...prev,
+            testCases: [...prev.testCases, ...newRows],
+          }));
+          showToast(isAr ? `تمت إضافة ${newRows.length} أسئلة إلى جدول الاختبار بنجاح!` : `Added ${newRows.length} questions to Test Table!`);
         }}
         lang={lang}
       />

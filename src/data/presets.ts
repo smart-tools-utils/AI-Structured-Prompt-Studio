@@ -74,6 +74,74 @@ export const PRESETS: StructuredPromptConfig[] = [
     jsonMode: true,
   },
   {
+    id: 'civic-quiz',
+    title: 'اختبار الجنسية والمعرفة المدنية (CivicQuiz - Samhällskunskap)',
+    description: 'توليد أسئلة اختبار المعرفة المدنية والمجتمع والاندماج في السويد بصيغة JSON مهيكلة.',
+    systemInstruction:
+      'Du är en expert på svensk samhällskunskap, demokrati, grundlagar och historia. Generera officiella flervalsfrågor för medborgarskap och samhällsorientering. Svara ALLTID med ett strikt JSON-objekt som innehåller: question_sv, question_ar, options (exakt 4 alternativ), correct_index (0-baserat heltal) och explanation.',
+    inputColumns: [
+      { id: 'in_topic', name: 'الموضوع / المدخل (Civic Topic)', type: 'text' },
+    ],
+    outputColumns: [
+      { id: 'out_quiz_json', name: 'بيانات السؤال (Quiz JSON)', type: 'json' },
+    ],
+    examples: [
+      {
+        id: 'ex_civic_1',
+        in_topic: 'Sveriges statsskick och grundlagar',
+        out_quiz_json: JSON.stringify(
+          {
+            question_sv: 'Vilka är Sveriges fyra grundlagar?',
+            question_ar: 'ما هي القوانين الأساسية (الدستورية) الأربعة في السويد؟',
+            options: [
+              'Regeringsformen, Successionsordningen, Tryckfrihetsförordningen och Yttrandefrihetsgrundlagen',
+              'Strafflagen, Civillagen, Miljölagen och Trafiklagen',
+              'Kommunallagen, Skattelagen, Polislagen och Skollagen',
+              'Europalagen, Riksdagsordningen, Arbetstidslagen och Momsordningen'
+            ],
+            correct_index: 0,
+            explanation: 'Sveriges statsskick bygger på fyra grundlagar: Regeringsformen, Successionsordningen, Tryckfrihetsförordningen samt Yttrandefrihetsgrundlagen.'
+          },
+          null,
+          2
+        ),
+      },
+      {
+        id: 'ex_civic_2',
+        in_topic: 'Allemansrätten och naturen i Sverige',
+        out_quiz_json: JSON.stringify(
+          {
+            question_sv: 'Vad innebär Allemansrätten i Sverige?',
+            question_ar: 'ماذا يعني "حق التجول في الطبيعة" (Allemansrätten) في السويد؟',
+            options: [
+              'Rätten att vistas fritt i naturen och plocka bär och svamp under regeln: inte störa, inte förstöra',
+              'Rätten att bygga stuga var man vill på privat mark',
+              'Rätten att jaga fritt utan licens i alla skogar',
+              'Rätten att köra motorcykel på alla naturstigar'
+            ],
+            correct_index: 0,
+            explanation: 'Allemansrätten ger alla människor tillgång till naturen med mottot "inte störa - inte förstöra".'
+          },
+          null,
+          2
+        ),
+      },
+    ],
+    testCases: [
+      {
+        id: 'test_civic_1',
+        in_topic: 'Hur många ledamöter sitter i Sveriges riksdag och hur väljs de?',
+      },
+      {
+        id: 'test_civic_2',
+        in_topic: 'Kommunernas och regionernas olika ansvarsområden i Sverige',
+      },
+    ],
+    model: 'gemini-3.1-flash-lite',
+    thinkingLevel: 'LOW',
+    jsonMode: true,
+  },
+  {
     id: 'sentiment-intent',
     title: 'تحليل المشاعر والنية (Customer Sentiment & Intent)',
     description: 'تصنيف رسائل العملاء حسب المشاعر، النية، مستوى الأهمية، والإجراء المقترح.',

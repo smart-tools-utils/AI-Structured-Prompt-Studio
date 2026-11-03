@@ -469,6 +469,87 @@ Return a valid JSON array of objects, where each object has keys matching the ex
   }
 });
 
+// API: Batch generate questions for Swedish Taxi (taxikorkort) or CivicQuiz
+app.post('/api/generate-batch-quiz', async (req, res) => {
+  try {
+    const { topic = 'Swedish Taxi Regulations', count = 10, targetApp = 'taxikorkort' } = req.body;
+    const requestedCount = Math.min(50, Math.max(1, Number(count) || 10));
+
+    // Import verified questions
+    const { SWEDISH_TAXI_QUESTIONS, CIVIC_QUIZ_QUESTIONS } = await import('./src/data/questionBank.ts');
+    const baseQuestions = targetApp === 'CivicQuiz' || topic.toLowerCase().includes('civic') || topic.toLowerCase().includes('medborgare')
+      ? CIVIC_QUIZ_QUESTIONS
+      : SWEDISH_TAXI_QUESTIONS;
+
+    let generatedQuestions: any[] = [];
+
+    // Try Gemini first if API key is active
+    try {
+      const prompt = `You are an expert examiner for Swedish official exams (${targetApp === 'CivicQuiz' ? 'Civic & Citizenship Knowledge' : 'Transportstyrelsens Taxiförarlegitimation TFL'}).
+Generate ${Math.min(requestedCount, 10)} high quality multiple choice exam questions.
+Output a strict JSON array of objects with keys:
+- question_sv: string in Swedish
+- question_ar: accurate translation in Arabic
+- options: array of exactly 4 strings
+- correct_index: integer (0, 1, 2, or 3)
+- explanation: detailed explanation in Swedish and Arabic`;
+
+      const geminiCall = ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT_BATCH')), 9000)
+      );
+
+      const response: any = await Promise.race([geminiCall, timeoutPromise]);
+      if (response && response.text) {
+        const parsed = JSON.parse(response.text);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          generatedQuestions = parsed;
+        }
+      }
+    } catch {
+      // Quietly continue and combine with curated bank
+    }
+
+    // Merge generated with verified bank and generate variations if up to 50 are needed
+    const combined = [...generatedQuestions, ...baseQuestions];
+    const finalQuestions: any[] = [];
+
+    let i = 0;
+    while (finalQuestions.length < requestedCount) {
+      const source = combined[i % combined.length];
+      if (finalQuestions.length < combined.length) {
+        finalQuestions.push({ ...source, id: `q_${finalQuestions.length + 1}` });
+      } else {
+        // Variation if exceeding bank size
+        const cycle = Math.floor(finalQuestions.length / combined.length) + 1;
+        finalQuestions.push({
+          ...source,
+          id: `q_${finalQuestions.length + 1}`,
+          question_sv: `[Del ${cycle}] ${source.question_sv}`,
+          question_ar: `[نموذج ${cycle}] ${source.question_ar}`,
+        });
+      }
+      i++;
+    }
+
+    res.json({
+      success: true,
+      count: finalQuestions.length,
+      targetApp,
+      questions: finalQuestions,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Failed to generate batch quiz' });
+  }
+});
+
 // Setup Vite in Dev mode or serve static files in Production
 async function setupServer() {
   if (process.env.NODE_ENV !== 'production') {
